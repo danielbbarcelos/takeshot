@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/icon-source.png" alt="Ícone do takeshot" width="128" height="128">
+</p>
+
 # takeshot
 
 Ferramenta de captura de tela open source, nativa, para GNOME/Wayland — criada para substituir o
@@ -7,6 +11,25 @@ Flameshot, que não funciona em sessões Wayland puras (Qt5 não exporta handle 
 Seleção de região com anotação (setas, retângulos, elipses, traço livre, texto, pixelização,
 desfoque, numeração sequencial), atalho de teclado global, cópia para a área de transferência que
 sobrevive ao fechamento da janela, e zero dependências Python de terceiros.
+
+## Plataformas suportadas
+
+**Só Linux com GNOME/Wayland.** Não funciona em macOS nem Windows — a arquitetura inteira é
+construída em cima de tecnologias específicas do Linux/GNOME, sem equivalente direto nas outras
+plataformas:
+
+- **Captura**: `org.freedesktop.portal.Screenshot` via D-Bus é uma spec do `xdg-desktop-portal`,
+  exclusiva de desktops Linux.
+- **UI**: GTK4 + libadwaita via PyGObject — toolkit nativo do GNOME.
+- **Atalho global**: `gsettings`/dconf, o sistema de configuração do GNOME.
+- **Instalador**: `install.sh` assume `apt` (Debian/Ubuntu) e `.desktop` files.
+- **Wayland**: a exportação de window handle (`GdkWayland.WaylandToplevel.export_handle`) — a peça
+  que resolve o bug do Flameshot que motivou este projeto — é específica do Wayland.
+
+As únicas partes portáveis são a lógica pura do editor (`items.py`, `document.py`, `render.py`,
+`geom.py`) — sem dependência de GTK. Um port pra macOS usaria `ScreenCaptureKit`/AppKit; pra
+Windows, `Windows.Graphics.Capture`/WinUI — projetos à parte, não um esforço incremental sobre este
+código.
 
 ## Instalação
 
