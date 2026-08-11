@@ -101,17 +101,20 @@ def _capture_with_helper_window(app, display, interactive: bool, on_captured) ->
 
 def _finish_headless(app, capture: "Capture", copy: bool, save_path: "str | None") -> None:
     from takeshot.output import clipboard as clipboard_out
+    from takeshot.output import notify as notify_out
     from takeshot.output import save as save_out
 
     should_copy = copy or (save_path is None and app.config.copy_on_capture)
     should_save = save_path is not None or not should_copy
 
+    dest = None
     if should_copy:
         clipboard_out.copy_surface(capture.surface)
         log.info("captura copiada para a área de transferência")
     if should_save:
         dest = save_out.save_surface(capture.surface, save_path or None)
         log.info("captura salva em %s", dest)
+    notify_out.notify_capture(app, copied=should_copy, saved_path=dest)
 
 
 def _open_editor(app, capture: "Capture", *, initial_selection, copy: bool, save_path, no_edit: bool = False, on_finished: OnFinished) -> None:

@@ -634,16 +634,19 @@ class OverlaySession:
         `save_to_disk=False` pra só copiar, sem tocar em disco."""
         from takeshot.editor import render as render_mod
         from takeshot.output import clipboard as clipboard_out
+        from takeshot.output import notify as notify_out
         from takeshot.output import save as save_out
 
         final = render_mod.export(self.document, self.capture.surface)
 
+        dest = None
         if copy_to_clipboard:
             clipboard_out.copy_surface(final)
             log.info("captura copiada para a área de transferência")
         if save_to_disk:
             dest = save_out.save_surface(final, self.save_path or None)
             log.info("captura salva em %s", dest)
+        notify_out.notify_capture(self.app, copied=copy_to_clipboard, saved_path=dest)
 
         self._cache_selection()
         self.app.config.save()
@@ -655,6 +658,7 @@ class OverlaySession:
         """Salvar-como + copiar: grava no destino escolhido E copia para a área de transferência."""
         from takeshot.editor import render as render_mod
         from takeshot.output import clipboard as clipboard_out
+        from takeshot.output import notify as notify_out
         from takeshot.output import save as save_out
 
         if not self.windows:
@@ -666,6 +670,7 @@ class OverlaySession:
                 return
             clipboard_out.copy_surface(final)
             log.info("captura salva em %s e copiada para a área de transferência", path)
+            notify_out.notify_capture(self.app, copied=True, saved_path=path)
             self._cache_selection()
             self.app.config.save()
             self._close_all()
