@@ -86,13 +86,29 @@ assíncrono no main loop GLib, nunca `call_sync` (o portal pode abrir diálogo e
 
 ### 2.4 `parent_window`: quando importa
 
-Só é usado quando o portal desenha um diálogo. No caminho não-interativo isso acontece **uma única
-vez**: "permitir captura de tela?". Depois a permissão fica no permission store
-(`~/.local/share/flatpak/db/screenshot`, já existe nesta máquina) e nenhum diálogo aparece de novo
-— `parent_window` deixa de importar.
+Só é usado quando o portal desenha um diálogo. **Correção de premissa (confirmado em produção,
+2026-08-11):** `~/.local/share/flatpak/db/screenshot` é o permission store do **Flatpak** — só
+vale pra apps sandboxados. O takeshot é nativo (não-flatpak) e chama o portal direto por D-Bus;
+o backend `xdg-desktop-portal-gnome` para `Screenshot` **não usa um permission-store persistente
+pra apps nativos** — não existe entrada equivalente em `~/.local/share/xdg-desktop-portal/`. Ele
+reavalia a autorização a cada `Screenshot()` e só consegue desenhar o diálogo de acesso se houver
+uma janela nossa com foco no momento; sem isso, `ShowAccessDialog` retorna
+`AccessDenied: Only the focused app is allowed to show a system access dialog`, e a chamada volta
+como `Response(code=2)` — silenciosamente, sem nada visível pro usuário.
+
+Isso se manifesta como "todo boot preciso reinstalar pra funcionar o atalho": no caminho quente
+(`parent_window=""`, sem janela mapeada, por design — ver §2.5) as primeiras capturas de uma
+sessão nova falham com AccessDenied porque não há janela focada pra ancorar o diálogo. `--replace`
+"resolvia" por acidente (novo daemon, nova tentativa, timing diferente), não por reinstalar nada.
+**Correção real**: `capture/controller.py` cai automaticamente pro fluxo da janela auxiliar 1×1
+(§ abaixo) sempre que o caminho quente falha — a mesma janela focada que resolve o primeiro uso
+resolve esse caso também, sem intervenção do usuário. `portal_permission_granted` no config
+continua existindo como otimização (evita a janela auxiliar quando não é preciso), mas nunca mais
+é motivo de falha definitiva — é só a primeira tentativa, com fallback garantido.
 
 - **Captura por atalho (caminho quente): `parent_window = ""`.** Sem janela nossa mapeada nesse
-  momento; permissão já concedida, nenhum diálogo aparece.
+  momento; assume que a permissão já foi concedida — se o portal discordar (AccessDenied), cai pro
+  fluxo de janela auxiliar abaixo automaticamente.
 - **Primeira execução**: criar janela auxiliar 1×1, `set_decorated(False)`, `set_opacity(0.0)`,
   `set_can_focus(False)`; após `map`, exportar handle e usar. Ao `response == 0`, gravar
   `portal_permission_granted = true` e destruir a janela.
@@ -392,6 +408,7 @@ verdade fica para depois. Ícone `-symbolic.svg` fora do v1.
 | Bus name preso por instância zumbi | `--standalone`, `--replace`, `doctor` mostrando PID+exe do dono |
 | Divergência tela vs. arquivo salvo | Um único `render()` Cairo compartilhado entre tela e export |
 | Flash de tela antes do overlay abrir | Não mitigável — é o GNOME Shell reagindo ao `Screenshot()` do portal; `flash` só existe na API interna (allowlist), o portal público não expõe essa opção. Confirmado nesta máquina: `gdbus introspect ...org.gnome.Shell/Screenshot` mostra `flash` só em `Screenshot`/`ScreenshotArea`/`ScreenshotWindow` (interno), nunca em `org.freedesktop.portal.Screenshot`. `enable-animations=false` é a única alavanca, mas desliga todas as animações do Shell — decisão consciente de não aplicar |
+| Atalho "para de funcionar" a cada boot (`AccessDenied` no caminho quente, sem janela focada pra ancorar o diálogo — §2.4) | `capture/controller.py` cai automaticamente pro fluxo de janela auxiliar focada quando o caminho quente falha, em vez de desistir. Confirmado em produção 2026-08-11 via `journalctl --user`: erro real era `Only the focused app is allowed to show a system access dialog`, não PATH nem autostart (ambos verificados corretos) |
 
 ## 10. Ordem de implementação sugerida
 

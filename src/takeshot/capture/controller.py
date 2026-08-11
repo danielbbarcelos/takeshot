@@ -45,9 +45,21 @@ def start_capture(
 
     display = Gdk.Display.get_default()
     interactive = portal_interactive or app.config.interactive_portal
+    state = {"retried_with_focus": False}
 
     def on_captured(capture: "Capture | None", error: "str | None") -> None:
         if capture is None:
+            if not state["retried_with_focus"]:
+                # caminho quente falhou (comum logo após boot/login: o portal do
+                # GNOME não usa um permission-store persistente para o Screenshot,
+                # ele reavalia a autorização a cada chamada e só consegue mostrar
+                # o diálogo de acesso se houver uma janela nossa focada — sem isso
+                # ele responde AccessDenied. Cai pro fluxo com janela auxiliar
+                # focada, que resolve tanto o primeiro uso real quanto esse caso.
+                log.warning("captura falhou no caminho rápido (%s) — tentando com janela focada", error)
+                state["retried_with_focus"] = True
+                _capture_with_helper_window(app, display, interactive, on_captured)
+                return
             log.error("captura falhou: %s", error)
             on_finished()
             return
@@ -71,16 +83,20 @@ def start_capture(
         # caminho quente: sem janela nossa mapeada, permissão já concedida no portal
         source.capture_screen(display, parent_window="", interactive=interactive, on_result=on_captured)
     else:
-        from takeshot.capture import permission
+        _capture_with_helper_window(app, display, interactive, on_captured)
 
-        def on_handle_ready(helper_window, handle: str) -> None:
-            def on_captured_and_cleanup(capture: "Capture | None", error: "str | None") -> None:
-                permission.destroy_helper_window(helper_window)
-                on_captured(capture, error)
 
-            source.capture_screen(display, parent_window=handle, interactive=interactive, on_result=on_captured_and_cleanup)
+def _capture_with_helper_window(app, display, interactive: bool, on_captured) -> None:
+    from takeshot.capture import permission
 
-        permission.create_and_export_helper_window(app, on_handle_ready)
+    def on_handle_ready(helper_window, handle: str) -> None:
+        def on_captured_and_cleanup(capture: "Capture | None", error: "str | None") -> None:
+            permission.destroy_helper_window(helper_window)
+            on_captured(capture, error)
+
+        source.capture_screen(display, parent_window=handle, interactive=interactive, on_result=on_captured_and_cleanup)
+
+    permission.create_and_export_helper_window(app, on_handle_ready)
 
 
 def _finish_headless(app, capture: "Capture", copy: bool, save_path: "str | None") -> None:
