@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Takeshot (residente)
+Comment=Mantém o takeshot residente para o atalho global e a área de transferência funcionarem
+Exec=@BIN@ --daemon
+Icon=com.danielbarcelos.Takeshot
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

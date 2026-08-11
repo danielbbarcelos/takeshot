@@ -1,0 +1,11 @@
+.takeshot-overlay {
+  background-color: transparent;
+}
+
+.takeshot-toolbar {
+  border-radius: 10px;
+}
+
+entry.takeshot-text-tool {
+  min-width: 120px;
+}

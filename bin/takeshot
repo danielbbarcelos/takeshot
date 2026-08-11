@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+INSTALL_DIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
+exec env PYTHONPATH="${INSTALL_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}" python3 -m takeshot "$@"

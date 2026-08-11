@@ -251,7 +251,7 @@ display.get_clipboard().set_content(Gdk.ContentProvider.new_for_value(value))
 `ContentProvider`. No Wayland quem serve o clipboard é o processo de origem: **o app precisa ficar
 residente** (ver §4), senão a imagem some ao sair — a dor conhecida do Flameshot/ksnip.
 
-`output/save.py`: default `xdg-user-dir PICTURES` + `/Capturas de tela`, template
+`output/save.py`: default `xdg-user-dir PICTURES` + `/Takeshot` (ex.: `~/Imagens/Takeshot`), template
 `takeshot_%Y-%m-%d_%H-%M-%S.png` via `surface.write_to_png()`.
 
 ## 4. Instância única, residência
@@ -391,6 +391,7 @@ verdade fica para depois. Ícone `-symbolic.svg` fora do v1.
 | `custom0` do ksnip sobrescrito | Merge no array indexado por `command`, nunca `set` direto |
 | Bus name preso por instância zumbi | `--standalone`, `--replace`, `doctor` mostrando PID+exe do dono |
 | Divergência tela vs. arquivo salvo | Um único `render()` Cairo compartilhado entre tela e export |
+| Flash de tela antes do overlay abrir | Não mitigável — é o GNOME Shell reagindo ao `Screenshot()` do portal; `flash` só existe na API interna (allowlist), o portal público não expõe essa opção. Confirmado nesta máquina: `gdbus introspect ...org.gnome.Shell/Screenshot` mostra `flash` só em `Screenshot`/`ScreenshotArea`/`ScreenshotWindow` (interno), nunca em `org.freedesktop.portal.Screenshot`. `enable-animations=false` é a única alavanca, mas desliga todas as animações do Shell — decisão consciente de não aplicar |
 
 ## 10. Ordem de implementação sugerida
 

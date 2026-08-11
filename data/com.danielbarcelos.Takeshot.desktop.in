@@ -1,0 +1,20 @@
+[Desktop Entry]
+Type=Application
+Name=Takeshot
+GenericName=Captura de tela
+Comment=Captura de tela nativa para GNOME/Wayland
+Exec=@BIN@ preferences
+Icon=com.danielbarcelos.Takeshot
+Terminal=false
+Categories=Utility;Graphics;
+Keywords=screenshot;capture;captura;tela;print;
+StartupNotify=false
+Actions=Region;Screen;
+
+[Desktop Action Region]
+Name=Capturar região
+Exec=@BIN@ capture --region
+
+[Desktop Action Screen]
+Name=Capturar tela inteira
+Exec=@BIN@ capture --screen
