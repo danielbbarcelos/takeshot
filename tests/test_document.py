@@ -100,3 +100,19 @@ def test_clear_resets_everything():
     assert doc.items == []
     assert not doc.can_undo
     assert not doc.can_redo
+
+
+def test_replace_swaps_by_identity_in_one_commit():
+    from takeshot.editor.items import TextAnnotation
+    from takeshot.geom import Point
+
+    a = TextAnnotation(origin=Point(0, 0), text="a")
+    twin = TextAnnotation(origin=Point(0, 0), text="a")  # igual por valor, outro objeto
+    b = TextAnnotation(origin=Point(9, 9), text="b")
+    doc = AnnotationDocument()
+    doc.add(twin)
+    doc.add(a)
+    doc.replace(a, b)
+    assert doc.items[0] is twin and doc.items[1] is b
+    doc.undo()
+    assert doc.items[1] is a

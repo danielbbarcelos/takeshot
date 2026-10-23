@@ -117,3 +117,17 @@ def test_text_background_grows_bounds():
     boxed = TextAnnotation(origin=Point(10, 10), text="oi", background=(0, 0, 0, 1))
     assert boxed.bounds().width > plain.bounds().width
     assert boxed.bounds().x < plain.bounds().x
+
+
+def test_multiline_text_is_taller_than_single_line():
+    one = TextAnnotation(origin=Point(0, 0), text="abc")
+    two = TextAnnotation(origin=Point(0, 0), text="abc\nabc")
+    assert two.bounds().height > one.bounds().height * 1.5
+    assert abs(two.bounds().width - one.bounds().width) < 1
+
+
+def test_text_hit_test_uses_real_extents():
+    item = TextAnnotation(origin=Point(100, 100), text="texto", font_size=14)
+    b = item.bounds()
+    assert item.hit_test(b.x + b.width / 2, b.y + b.height / 2)
+    assert not item.hit_test(b.x2 + 50, b.y)

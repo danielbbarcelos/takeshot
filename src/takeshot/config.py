@@ -19,7 +19,9 @@ DEFAULTS: dict[str, Any] = {
     "counter_start": 1,
     "tool_color": [1.0, 0.13, 0.13, 1.0],
     "tool_line_width": 3.0,
-    "text_preset": 0,  # índice em editor.tools.TEXT_PRESETS
+    "text_font_size": 14.0,  # estilo do último texto confirmado = padrão do próximo
+    "text_color": [0.90, 0.11, 0.14, 1.0],
+    "text_background": None,
     "last_selection": None,  # {"x","y","w","h"} como fração 0..1 da tela lógica, ou None
 }
 

@@ -104,7 +104,8 @@ class OverlayCanvas(Gtk.Widget):
 
         # 4. anotações — mesmo render() usado na exportação
         ctx = RenderContext(origin=self.capture.surface)
-        render_mod.render(self.document, cr, ctx)
+        editing = self.session.editing_item if self.session is not None else None
+        render_mod.render(self.document, cr, ctx, exclude=editing)
 
         # 5. preview da ferramenta ativa (fora do documento, só nesta janela)
         if self.session is not None:

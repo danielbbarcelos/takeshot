@@ -41,8 +41,12 @@ class AnnotationDocument:
         self._commit(self._items + [item])
 
     def remove(self, item: Annotation) -> None:
-        if item in self._items:
+        if any(i is item for i in self._items):
             self._commit([i for i in self._items if i is not item])
+
+    def replace(self, old: Annotation, new: Annotation) -> None:
+        """Troca `old` (por identidade, não por igualdade) num único passo de undo."""
+        self._commit([new if i is old else i for i in self._items])
 
     def replace_items(self, items: list[Annotation]) -> None:
         self._commit(list(items))

@@ -13,8 +13,11 @@ from takeshot.editor.items import RenderContext
 from takeshot.geom import Rect
 
 
-def render(document: AnnotationDocument, cr: cairo.Context, ctx: RenderContext) -> None:
+def render(document: AnnotationDocument, cr: cairo.Context, ctx: RenderContext, exclude: object = None) -> None:
+    """`exclude`: item escondido na tela enquanto é editado (texto). A exportação nunca passa."""
     for item in document.items:
+        if item is exclude:
+            continue
         cr.save()
         item.render(cr, ctx)
         cr.restore()

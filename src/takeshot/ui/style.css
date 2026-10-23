@@ -6,11 +6,33 @@
   border-radius: 10px;
 }
 
-entry.takeshot-text-tool {
-  min-width: 120px;
+.takeshot-swatch {
+  min-width: 14px;
+  min-height: 14px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
 }
 
-button.takeshot-text-preset:checked {
+button.takeshot-swatch-button {
+  min-width: 22px;
+  min-height: 22px;
+  padding: 3px;
+}
+
+button.takeshot-swatch-button:checked {
   outline: 2px solid @accent_color;
-  outline-offset: -4px;
+  outline-offset: -2px;
+}
+
+.takeshot-text-size {
+  font-feature-settings: "tnum";
+  padding: 0 4px;
+}
+
+.takeshot-text-grip {
+  font-size: 15px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: white;
+  background: rgba(0, 0, 0, 0.6);
 }

@@ -18,12 +18,14 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
-from gi.repository import Gdk, GLib, Gtk  # noqa: E402
+from gi.repository import Gdk, Gtk  # noqa: E402
 
 from takeshot.editor.canvas import OverlayCanvas
 from takeshot.editor.document import AnnotationDocument
 from takeshot.editor.items import RenderContext
-from takeshot.editor.tools import CLICK_TOOLS, TOOL_KEY_BINDINGS, ToolKind, ToolStyle, make_tool, make_text_annotation
+from takeshot.editor.items import TextAnnotation
+from takeshot.editor.textedit import TextEdit, TextStyle
+from takeshot.editor.tools import CLICK_TOOLS, TOOL_KEY_BINDINGS, ToolKind, ToolStyle, make_tool
 from takeshot.geom import Point, Rect
 
 log = logging.getLogger("takeshot.editor.overlay")
@@ -94,6 +96,17 @@ def fraction_to_selection(capture, fraction: dict) -> "Rect | None":
     if rect.width < MIN_SELECTION_SIZE or rect.height < MIN_SELECTION_SIZE:
         return None
     return rect
+
+
+def _text_style_from_config(config) -> TextStyle:
+    try:
+        background = config.text_background
+        return TextStyle(
+            color=tuple(config.text_color),
+            background=tuple(background) if background else None,
+        ).with_font_size(float(config.text_font_size))
+    except (TypeError, ValueError):
+        return TextStyle()
 
 
 class SelectionState(enum.Enum):
@@ -227,11 +240,12 @@ class OverlaySession:
 
         self.tool_style = ToolStyle(color=tuple(app.config.tool_color), line_width=float(app.config.tool_line_width))
         self.tool_kind: "ToolKind | None" = None  # nenhuma ferramenta ativa por padrão
-        self.text_preset = int(app.config.text_preset)
+        self.text_style = _text_style_from_config(app.config)
         self.tool = None
         self._active_window: "OverlayWindow | None" = None
-        self._text_entry: "Gtk.Entry | None" = None
-        self._text_origin_image: "Point | None" = None
+        self.text_edit: "TextEdit | None" = None
+        self._text_box = None  # textbox.FloatingTextBox enquanto text_edit existe
+        self._text_drag_anchor: "tuple[Point, Point] | None" = None  # (ponto do clique, origem do texto)
         self.toolbar = None
         self._toolbar_window: "OverlayWindow | None" = None
         self._resize_handle: "str | None" = None
@@ -320,6 +334,18 @@ class OverlaySession:
         self._active_window = window
         image_point = Point(*self.capture.image_from_logical(global_point.x, global_point.y))
 
+        if self.text_edit is not None:
+            # clicar fora do campo confirma o texto em edição e segue com o clique
+            self.text_confirm()
+
+        if self.tool_kind in (None, ToolKind.TEXT):
+            text_item = self._text_item_at(image_point)
+            if text_item is not None:
+                # clicar num texto abre ele pra edição; arrastar já move
+                self._begin_text_edit(TextEdit.of(text_item), window)
+                self._text_drag_anchor = (image_point, text_item.origin)
+                return
+
         handle = self._hit_test_handle(image_point)
         if handle is not None:
             self._resize_handle = handle
@@ -338,7 +364,7 @@ class OverlaySession:
             return
 
         if self.tool_kind is ToolKind.TEXT:
-            self._start_text_input(image_point)
+            self._begin_text_edit(TextEdit.new(image_point, self.text_style), window)
             return
 
         self.tool.on_press(image_point)
@@ -356,6 +382,12 @@ class OverlaySession:
             return
 
         image_point = Point(*self.capture.image_from_logical(global_point.x, global_point.y))
+
+        if self._text_drag_anchor is not None and self.text_edit is not None:
+            start, origin = self._text_drag_anchor
+            self.text_edit.origin = origin.translated(image_point.x - start.x, image_point.y - start.y)
+            self._text_box.reposition()
+            return
 
         if self._resize_handle is not None:
             self.document.selection_rect = resized_rect(self._resize_handle, self._resize_anchor, image_point)
@@ -391,6 +423,12 @@ class OverlaySession:
             return
 
         image_point = Point(*self.capture.image_from_logical(global_point.x, global_point.y))
+
+        if self._text_drag_anchor is not None:
+            self._text_drag_anchor = None
+            if self._text_box is not None:
+                self._text_box.focus()
+            return
 
         if self._resize_handle is not None:
             rect = resized_rect(self._resize_handle, self._resize_anchor, image_point)
@@ -445,58 +483,72 @@ class OverlaySession:
             return
         self.app.config.last_selection = selection_to_fraction(self.capture, self.document.selection_rect)
 
-    # --- ferramenta de texto (widget real flutuante) ---
+    # --- edição de texto (campo flutuante + menu de texto na toolbar) ---
 
-    def _start_text_input(self, image_point: Point) -> None:
-        if self._text_entry is not None or self._active_window is None:
-            return
-        window = self._active_window
-        entry = Gtk.Entry()
-        entry.set_width_chars(16)
-        entry.add_css_class("takeshot-text-tool")
-        entry.add_css_class(f"takeshot-text-preset-{self.text_preset}")
-        entry.set_name("takeshot-text-entry")
+    @property
+    def editing_item(self) -> "TextAnnotation | None":
+        """Texto do documento escondido na tela enquanto o campo o substitui."""
+        return self.text_edit.original if self.text_edit is not None else None
 
-        self._text_entry = entry
-        self._text_origin_image = image_point
+    def _text_item_at(self, image_point: Point) -> "TextAnnotation | None":
+        for item in reversed(self.document.items):
+            if isinstance(item, TextAnnotation) and item.hit_test(image_point.x, image_point.y, tolerance=2.0):
+                return item
+        return None
 
-        def position() -> "tuple[int, int, int, int] | None":
-            lx, ly = self.capture.logical_from_image(image_point.x, image_point.y)
-            local = window.local_from_global(Point(lx, ly))
-            _, width, *_ = entry.measure(Gtk.Orientation.HORIZONTAL, -1)
-            _, height, *_ = entry.measure(Gtk.Orientation.VERTICAL, -1)
-            return int(local.x), int(local.y - height / 2), max(width, 120), height
+    def _begin_text_edit(self, edit: TextEdit, window: "OverlayWindow") -> None:
+        from takeshot.editor.textbox import FloatingTextBox
 
-        window.add_floating(entry, position)
-        entry.connect("activate", lambda _e: self._commit_text_input())
-        # Remover o entry de dentro do próprio "leave" deixa o GTK em loop
-        # infinito (gtk_widget_get_parent em widget já destruído) — era o
-        # travamento da ferramenta de texto. O commit vai para o idle, depois
-        # que a troca de foco terminou.
-        focus = Gtk.EventControllerFocus()
-        focus.connect("leave", lambda _c: GLib.idle_add(self._commit_text_input, entry))
-        entry.add_controller(focus)
-        entry.grab_focus()
-
-    def _commit_text_input(self, expected_entry: "Gtk.Entry | None" = None) -> bool:
-        entry = self._text_entry
-        origin = self._text_origin_image
-        window = self._active_window
-        if entry is None or origin is None or window is None:
-            return False
-        if expected_entry is not None and entry is not expected_entry:
-            return False
-        # limpa o estado ANTES de remover: a remoção dispara "leave" de novo
-        self._text_entry = None
-        self._text_origin_image = None
-        text = entry.get_text()
-        window.remove_floating(entry)
-        item = make_text_annotation(origin, text, self.tool_style, preset=self.text_preset)
-        if item is not None:
-            self.document.add(item)
+        self.text_edit = edit
+        self._text_box = FloatingTextBox(self, window, edit)
+        if self.toolbar is not None:
+            self.toolbar.show_text_menu(edit.style)
         self._refresh()
-        window.canvas.grab_focus()
-        return False
+
+    def _end_text_edit(self, outcome: str) -> None:
+        edit, box = self.text_edit, self._text_box
+        if edit is None:
+            return
+        # limpa o estado antes de destruir o campo: a remoção mexe no foco
+        self.text_edit = None
+        self._text_box = None
+        self._text_drag_anchor = None
+        getattr(edit, outcome)(self.document)
+        if box is not None:
+            box.destroy()
+        if self.toolbar is not None:
+            self.toolbar.show_main_menu()
+        self._refresh()
+        if self.windows:
+            (self._active_window or self.windows[0]).canvas.grab_focus()
+
+    def text_confirm(self) -> None:
+        """Aplica o texto como está."""
+        if self.text_edit is not None:
+            self._remember_text_style(self.text_edit.style)
+        self._end_text_edit("confirm")
+
+    def text_cancel(self) -> None:
+        """Exclui o texto: o novo some, o existente sai do documento (Ctrl+Z traz de volta)."""
+        self._end_text_edit("cancel")
+
+    def text_discard(self) -> None:
+        """Descarta as alterações desde o clique (estilo, posição, conteúdo)."""
+        self._end_text_edit("discard")
+
+    def text_set_style(self, style: TextStyle) -> None:
+        if self.text_edit is None or self._text_box is None:
+            return
+        self.text_edit.style = style
+        self._text_box.update_style()
+        self._text_box.focus()
+
+    def _remember_text_style(self, style: TextStyle) -> None:
+        """O estilo do último texto confirmado vira o padrão do próximo."""
+        self.text_style = style
+        self.app.config.text_font_size = style.font_size
+        self.app.config.text_color = list(style.color)
+        self.app.config.text_background = list(style.background) if style.background else None
 
     # --- toolbar flutuante ---
 
@@ -556,13 +608,9 @@ class OverlaySession:
         if self.toolbar is not None:
             self.toolbar.sync_tool(kind)
 
-    def set_text_preset(self, index: int) -> None:
-        self.text_preset = index
-        self.app.config.text_preset = index
-
     def restart_selection(self) -> None:
         """Descarta área e anotações; o próximo arrasto define a nova área."""
-        self._discard_text_input()
+        self.text_discard()
         self.document.clear()
         self.state = SelectionState.SELECTING
         self._remove_toolbar()
@@ -570,13 +618,6 @@ class OverlaySession:
         self._refresh()
         if self.windows:
             (self._active_window or self.windows[0]).canvas.grab_focus()
-
-    def _discard_text_input(self) -> None:
-        entry, window = self._text_entry, self._active_window
-        self._text_entry = None
-        self._text_origin_image = None
-        if entry is not None and window is not None:
-            window.remove_floating(entry)
 
     def set_color(self, color) -> None:
         self.tool_style.color = color
@@ -592,8 +633,16 @@ class OverlaySession:
             self._finish()
 
     def on_key(self, keyval: int, state: Gdk.ModifierType) -> bool:
-        if self._text_entry is not None:
-            return False  # deixa o Gtk.Entry tratar o teclado
+        if self.text_edit is not None:
+            # o campo trata o teclado; isto só roda se o foco estiver fora dele
+            name = Gdk.keyval_name(keyval) or ""
+            if name in ("Return", "KP_Enter"):
+                self.text_confirm()
+                return True
+            if name == "Escape":
+                self.text_discard()
+                return True
+            return False
 
         name = Gdk.keyval_name(keyval) or ""
         ctrl = bool(state & Gdk.ModifierType.CONTROL_MASK)
@@ -659,6 +708,7 @@ class OverlaySession:
 
     def _cancel(self) -> None:
         log.info("captura cancelada pelo usuário")
+        self.text_discard()
         self._close_all()
         self.app.overlay_session = None
         self.on_finished()
@@ -671,6 +721,7 @@ class OverlaySession:
         from takeshot.output import notify as notify_out
         from takeshot.output import save as save_out
 
+        self.text_confirm()
         final = render_mod.export(self.document, self.capture.surface)
 
         dest = None
@@ -697,6 +748,7 @@ class OverlaySession:
 
         if not self.windows:
             return
+        self.text_confirm()
         final = render_mod.export(self.document, self.capture.surface)
 
         def on_saved(path: "object | None") -> None:

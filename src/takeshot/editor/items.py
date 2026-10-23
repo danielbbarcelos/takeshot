@@ -229,11 +229,17 @@ class TextAnnotation(Annotation):
     def padding(self) -> float:
         return self.font_size * TEXT_BACKGROUND_PADDING if self.background is not None else 0.0
 
+    def _logical_extents(self, cr: "cairo.Context | None" = None) -> tuple[int, int, int, int]:
+        """Extents reais do layout Pango (multilinha), em px relativos à origem."""
+        if cr is None:
+            cr = cairo.Context(cairo.ImageSurface(cairo.FORMAT_ARGB32, 1, 1))
+        _, logical = _pango_layout(cr, self.text or " ", self.font_size).get_pixel_extents()
+        return logical.x, logical.y, logical.width, logical.height
+
     def bounds(self) -> Rect:
-        width = max(len(self.text), 1) * self.font_size * 0.6
-        height = self.font_size * 1.4
+        lx, ly, lw, lh = self._logical_extents()
         pad = self.padding
-        return Rect(self.origin.x - pad, self.origin.y - pad, width + 2 * pad, height + 2 * pad)
+        return Rect(self.origin.x + lx - pad, self.origin.y + ly - pad, lw + 2 * pad, lh + 2 * pad)
 
     def translated(self, dx: float, dy: float) -> TextAnnotation:
         return replace(self, origin=self.origin.translated(dx, dy))
@@ -243,14 +249,9 @@ class TextAnnotation(Annotation):
             return
         layout = _pango_layout(cr, self.text, self.font_size)
         if self.background is not None:
-            _, logical = layout.get_pixel_extents()
+            lx, ly, lw, lh = self._logical_extents(cr)
             pad = self.padding
-            _rounded_rect(
-                cr,
-                self.origin.x + logical.x - pad, self.origin.y + logical.y - pad,
-                logical.width + 2 * pad, logical.height + 2 * pad,
-                radius=pad,
-            )
+            _rounded_rect(cr, self.origin.x + lx - pad, self.origin.y + ly - pad, lw + 2 * pad, lh + 2 * pad, radius=pad)
             _set_source(cr, self.background)
             cr.fill()
         cr.move_to(self.origin.x, self.origin.y)

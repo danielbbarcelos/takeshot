@@ -198,11 +198,18 @@ ArrowAnnotation(start, end)
 RectAnnotation(rect, filled=False)
 EllipseAnnotation(rect)
 FreehandAnnotation(points)
-TextAnnotation(origin, text, font_size, background=None)  # PangoCairo; background = caixa atrás do texto (presets em tools.TEXT_PRESETS)
+TextAnnotation(origin, text, font_size, background=None)  # PangoCairo, multilinha; background = caixa atrás do texto
 PixelateAnnotation(rect, block=12)
 BlurAnnotation(rect, radius=8)
 CounterAnnotation(center, radius, number)     # numeração sequencial
 ```
+Texto é editado fora do documento (`editor/textedit.py`, sem gi): o rascunho tem três desfechos
+(confirm/cancel/discard), cada um no máximo um passo de undo, e o original fica no documento
+escondido da tela via `render(exclude=...)`. O campo (`editor/textbox.py`) é um `Gtk.TextView`
+estilizado para coincidir com o render e dimensionado pelas extents Pango do rascunho. Nunca
+remover o widget de dentro do próprio evento (foco/tecla): esconde e remove no idle. Isso já
+travou o GTK em loop infinito.
+
 `RenderContext` carrega a superfície de origem (`Capture.surface`). **Blur/pixelate sempre lê a
 origem**, nunca o composto — borrar uma área e desenhar uma seta por cima não borra a seta.
 

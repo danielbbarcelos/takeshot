@@ -116,9 +116,23 @@ ela, redimensionar é sempre pelos handles, e desenhar exige escolher uma ferram
 (`1`–`8` ou clique na toolbar).
 
 O botão **Nova área** da toolbar descarta a seleção e as anotações; o próximo arrasto define a
-área nova. Com a ferramenta de texto (`5`) ativa, a toolbar mostra os estilos do texto: cor da
-ferramenta sem fundo, ou texto com caixa de fundo (branco sobre preto, preto sobre amarelo, branco
-sobre vermelho, preto sobre branco). O estilo escolhido fica salvo para as próximas capturas.
+área nova.
+
+### Texto
+
+Com a ferramenta de texto (`5`), clique onde o texto começa e digite. `Enter` confirma e
+`Shift+Enter` quebra a linha. Enquanto um texto está em edição, a toolbar mostra só o menu de
+texto: tamanho da fonte (`A−`/`A+`), cor do texto, cor de fundo (ou sem fundo) e três ações.
+
+| Ação | O que faz |
+|---|---|
+| Confirmar (`Enter`) | aplica o texto como está |
+| Cancelar | exclui o texto (o novo some; o existente sai da imagem, `Ctrl+Z` traz de volta) |
+| Descartar (`Esc`) | desfaz as alterações feitas desde o clique: estilo, posição e conteúdo |
+
+Clicar num texto já confirmado (com a ferramenta de texto ou sem ferramenta ativa) abre ele de
+novo para edição, e arrastar a partir desse clique move o texto. Durante a edição, a alça `✥` ao
+lado do campo também move. O estilo do último texto confirmado vira o padrão do próximo.
 
 ## Desinstalar
 
