@@ -18,7 +18,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
-from gi.repository import Gdk, Gtk  # noqa: E402
+from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 from takeshot.editor.canvas import OverlayCanvas
 from takeshot.editor.document import AnnotationDocument
@@ -467,26 +467,34 @@ class OverlaySession:
 
         window.add_floating(entry, position)
         entry.connect("activate", lambda _e: self._commit_text_input())
+        # Remover o entry de dentro do próprio "leave" deixa o GTK em loop
+        # infinito (gtk_widget_get_parent em widget já destruído) — era o
+        # travamento da ferramenta de texto. O commit vai para o idle, depois
+        # que a troca de foco terminou.
         focus = Gtk.EventControllerFocus()
-        focus.connect("leave", lambda _c: self._commit_text_input())
+        focus.connect("leave", lambda _c: GLib.idle_add(self._commit_text_input, entry))
         entry.add_controller(focus)
         entry.grab_focus()
 
-    def _commit_text_input(self) -> None:
+    def _commit_text_input(self, expected_entry: "Gtk.Entry | None" = None) -> bool:
         entry = self._text_entry
         origin = self._text_origin_image
         window = self._active_window
         if entry is None or origin is None or window is None:
-            return
-        text = entry.get_text()
-        window.remove_floating(entry)
+            return False
+        if expected_entry is not None and entry is not expected_entry:
+            return False
+        # limpa o estado ANTES de remover: a remoção dispara "leave" de novo
         self._text_entry = None
         self._text_origin_image = None
+        text = entry.get_text()
+        window.remove_floating(entry)
         item = make_text_annotation(origin, text, self.tool_style)
         if item is not None:
             self.document.add(item)
         self._refresh()
         window.canvas.grab_focus()
+        return False
 
     # --- toolbar flutuante ---
 
@@ -641,7 +649,7 @@ class OverlaySession:
 
         dest = None
         if copy_to_clipboard:
-            clipboard_out.copy_surface(final)
+            clipboard_out.copy_surface(final, self.app)
             log.info("captura copiada para a área de transferência")
         if save_to_disk:
             dest = save_out.save_surface(final, self.save_path or None)
@@ -668,7 +676,7 @@ class OverlaySession:
         def on_saved(path: "object | None") -> None:
             if path is None:
                 return
-            clipboard_out.copy_surface(final)
+            clipboard_out.copy_surface(final, self.app)
             log.info("captura salva em %s e copiada para a área de transferência", path)
             notify_out.notify_capture(self.app, copied=True, saved_path=path)
             self._cache_selection()

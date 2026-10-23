@@ -282,8 +282,12 @@ sem forma de diagnosticar quem venceu**. Três mitigações são requisito de v1
 3. `takeshot doctor` reporta o dono do bus name via `GetConnectionUnixProcessID` →
    `/proc/<pid>/exe` → caminho real do binário.
 
-Residência: `keep_running: true` (default). `hold()` enquanto houver overlay aberto ou for dono do
-clipboard. `--daemon` inicia residente sem capturar (autostart).
+Residência: `hold()` enquanto houver overlay aberto ou for dono do clipboard
+(`output/clipboard.py`, solta quando `Gdk.Clipboard::changed` diz que outro app assumiu).
+`--daemon` inicia residente sem capturar (autostart). Fora de `--standalone`, a primeira captura
+também torna o processo residente: se o daemon do autostart morrer, o próximo atalho assume o
+papel em vez de sair após cada captura (incidente de 2026-10-22: o processo saía e o Ctrl+V
+ficava vazio, mesmo com a notificação de "copiado").
 
 ## 5. Atalho de teclado global
 

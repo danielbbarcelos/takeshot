@@ -32,6 +32,8 @@ class TakeshotApplication(Adw.Application):
         super().__init__(application_id=APP_ID, flags=flags)
         self.config = config_mod.Config.load()
         self.overlay_session = None
+        self.standalone = standalone
+        self._resident = False
 
     def do_startup(self) -> None:
         Adw.Application.do_startup(self)
@@ -68,10 +70,20 @@ class TakeshotApplication(Adw.Application):
             return
         if args.daemon:
             log.info("residente iniciado (--daemon)")
-            self.hold()
+            self._become_resident()
             return
 
+        # Se o daemon do autostart morreu, o primeiro atalho sobe uma instância
+        # nova; ela assume a residência em vez de sair após cada captura.
+        if not self.standalone:
+            self._become_resident()
         self._start_capture(args)
+
+    def _become_resident(self) -> None:
+        if self._resident:
+            return
+        self._resident = True
+        self.hold()
 
     def _open_preferences(self) -> None:
         from takeshot.ui.preferences import PreferencesWindow

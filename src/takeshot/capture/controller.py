@@ -109,7 +109,7 @@ def _finish_headless(app, capture: "Capture", copy: bool, save_path: "str | None
 
     dest = None
     if should_copy:
-        clipboard_out.copy_surface(capture.surface)
+        clipboard_out.copy_surface(capture.surface, app)
         log.info("captura copiada para a área de transferência")
     if should_save:
         dest = save_out.save_surface(capture.surface, save_path or None)

@@ -26,9 +26,30 @@ def texture_from_surface(surface: cairo.ImageSurface) -> Gdk.Texture:
     )
 
 
-def copy_surface(surface: cairo.ImageSurface, display: "Gdk.Display | None" = None) -> None:
+def copy_surface(surface: cairo.ImageSurface, app=None, display: "Gdk.Display | None" = None) -> None:
     display = display or Gdk.Display.get_default()
     texture = texture_from_surface(surface)
     value = GObject.Value(Gdk.Texture, texture)
     provider = Gdk.ContentProvider.new_for_value(value)
-    display.get_clipboard().set_content(provider)
+    clipboard = display.get_clipboard()
+    clipboard.set_content(provider)
+    if app is not None:
+        _hold_while_owner(app, clipboard)
+
+
+def _hold_while_owner(app, clipboard: Gdk.Clipboard) -> None:
+    """No Wayland quem serve o clipboard é o processo de origem: se ele sai,
+    o Ctrl+V fica vazio mesmo com a cópia "feita". Segura o app até outro
+    programa assumir o clipboard (CLAUDE.md §4)."""
+    if getattr(app, "_clipboard_hold", None) is not None:
+        return
+
+    def on_changed(cb: Gdk.Clipboard) -> None:
+        if cb.is_local():
+            return
+        cb.disconnect(app._clipboard_hold)
+        app._clipboard_hold = None
+        app.release()
+
+    app.hold()
+    app._clipboard_hold = clipboard.connect("changed", on_changed)
