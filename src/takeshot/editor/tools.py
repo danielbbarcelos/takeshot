@@ -58,6 +58,22 @@ CLICK_TOOLS = {ToolKind.TEXT, ToolKind.COUNTER}
 """Ferramentas que agem no clique/press, não no arrasto de um retângulo."""
 
 
+@dataclass(frozen=True)
+class TextPreset:
+    label: str
+    foreground: "Color | None"  # None = cor atual da ferramenta
+    background: "Color | None"
+
+
+TEXT_PRESETS: list[TextPreset] = [
+    TextPreset("Cor da ferramenta, sem fundo", None, None),
+    TextPreset("Branco sobre preto", (1.0, 1.0, 1.0, 1.0), (0.0, 0.0, 0.0, 0.85)),
+    TextPreset("Preto sobre amarelo", (0.0, 0.0, 0.0, 1.0), (1.0, 0.85, 0.0, 1.0)),
+    TextPreset("Branco sobre vermelho", (1.0, 1.0, 1.0, 1.0), (0.85, 0.1, 0.1, 1.0)),
+    TextPreset("Preto sobre branco", (0.0, 0.0, 0.0, 1.0), (1.0, 1.0, 1.0, 0.95)),
+]
+
+
 @dataclass
 class ToolStyle:
     color: Color = (1.0, 0.13, 0.13, 1.0)
@@ -260,7 +276,13 @@ def make_tool(kind: ToolKind, style: ToolStyle, next_counter: Callable[[], int])
     raise ValueError(f"ferramenta desconhecida: {kind}")
 
 
-def make_text_annotation(origin: Point, text: str, style: ToolStyle, font_size: float = 24.0) -> "Annotation | None":
+def make_text_annotation(
+    origin: Point, text: str, style: ToolStyle, font_size: float = 24.0, preset: int = 0,
+) -> "Annotation | None":
     if not text:
         return None
-    return TextAnnotation(origin=origin, text=text, font_size=font_size, color=style.color)
+    p = TEXT_PRESETS[preset] if 0 <= preset < len(TEXT_PRESETS) else TEXT_PRESETS[0]
+    return TextAnnotation(
+        origin=origin, text=text, font_size=font_size,
+        color=p.foreground or style.color, background=p.background,
+    )

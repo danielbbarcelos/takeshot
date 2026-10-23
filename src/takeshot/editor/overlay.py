@@ -227,6 +227,7 @@ class OverlaySession:
 
         self.tool_style = ToolStyle(color=tuple(app.config.tool_color), line_width=float(app.config.tool_line_width))
         self.tool_kind: "ToolKind | None" = None  # nenhuma ferramenta ativa por padrão
+        self.text_preset = int(app.config.text_preset)
         self.tool = None
         self._active_window: "OverlayWindow | None" = None
         self._text_entry: "Gtk.Entry | None" = None
@@ -453,6 +454,7 @@ class OverlaySession:
         entry = Gtk.Entry()
         entry.set_width_chars(16)
         entry.add_css_class("takeshot-text-tool")
+        entry.add_css_class(f"takeshot-text-preset-{self.text_preset}")
         entry.set_name("takeshot-text-entry")
 
         self._text_entry = entry
@@ -489,7 +491,7 @@ class OverlaySession:
         self._text_origin_image = None
         text = entry.get_text()
         window.remove_floating(entry)
-        item = make_text_annotation(origin, text, self.tool_style)
+        item = make_text_annotation(origin, text, self.tool_style, preset=self.text_preset)
         if item is not None:
             self.document.add(item)
         self._refresh()
@@ -551,6 +553,30 @@ class OverlaySession:
     def set_tool(self, kind: "ToolKind | None") -> None:
         self.tool_kind = kind
         self.tool = make_tool(kind, self.tool_style, next_counter=lambda: self.document.next_counter) if kind is not None else None
+        if self.toolbar is not None:
+            self.toolbar.sync_tool(kind)
+
+    def set_text_preset(self, index: int) -> None:
+        self.text_preset = index
+        self.app.config.text_preset = index
+
+    def restart_selection(self) -> None:
+        """Descarta área e anotações; o próximo arrasto define a nova área."""
+        self._discard_text_input()
+        self.document.clear()
+        self.state = SelectionState.SELECTING
+        self._remove_toolbar()
+        self.set_tool(None)
+        self._refresh()
+        if self.windows:
+            (self._active_window or self.windows[0]).canvas.grab_focus()
+
+    def _discard_text_input(self) -> None:
+        entry, window = self._text_entry, self._active_window
+        self._text_entry = None
+        self._text_origin_image = None
+        if entry is not None and window is not None:
+            window.remove_floating(entry)
 
     def set_color(self, color) -> None:
         self.tool_style.color = color

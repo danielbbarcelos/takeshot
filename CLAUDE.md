@@ -198,7 +198,7 @@ ArrowAnnotation(start, end)
 RectAnnotation(rect, filled=False)
 EllipseAnnotation(rect)
 FreehandAnnotation(points)
-TextAnnotation(origin, text, font_size)       # PangoCairo, não cr.show_text
+TextAnnotation(origin, text, font_size, background=None)  # PangoCairo; background = caixa atrás do texto (presets em tools.TEXT_PRESETS)
 PixelateAnnotation(rect, block=12)
 BlurAnnotation(rect, radius=8)
 CounterAnnotation(center, radius, number)     # numeração sequencial

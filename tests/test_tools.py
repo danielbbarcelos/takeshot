@@ -57,3 +57,30 @@ def test_counter_tool_uses_next_number_callback():
 def test_make_tool_returns_matching_kind():
     tool = make_tool(ToolKind.BLUR, ToolStyle(), next_counter=lambda: 1)
     assert tool.kind is ToolKind.BLUR
+
+
+def test_text_preset_with_own_colors_overrides_tool_color():
+    from takeshot.editor.tools import TEXT_PRESETS, make_text_annotation
+
+    style = ToolStyle(color=(0.1, 0.2, 0.3, 1.0))
+    index = next(i for i, p in enumerate(TEXT_PRESETS) if p.background is not None)
+    item = make_text_annotation(Point(0, 0), "x", style, preset=index)
+    assert item.color == TEXT_PRESETS[index].foreground
+    assert item.background == TEXT_PRESETS[index].background
+
+
+def test_first_text_preset_uses_tool_color_without_background():
+    from takeshot.editor.tools import make_text_annotation
+
+    style = ToolStyle(color=(0.1, 0.2, 0.3, 1.0))
+    item = make_text_annotation(Point(0, 0), "x", style, preset=0)
+    assert item.color == style.color
+    assert item.background is None
+
+
+def test_text_preset_out_of_range_falls_back_to_first():
+    from takeshot.editor.tools import make_text_annotation
+
+    style = ToolStyle(color=(0.1, 0.2, 0.3, 1.0))
+    item = make_text_annotation(Point(0, 0), "x", style, preset=99)
+    assert item.color == style.color

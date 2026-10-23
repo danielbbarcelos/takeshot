@@ -23,6 +23,7 @@ Color = tuple[float, float, float, float]
 
 DEFAULT_COLOR: Color = (1.0, 0.13, 0.13, 1.0)
 FONT_FAMILY = "Ubuntu"
+TEXT_BACKGROUND_PADDING = 0.25  # fração do font_size
 
 
 @dataclass
@@ -222,11 +223,17 @@ class TextAnnotation(Annotation):
     origin: Point
     text: str = ""
     font_size: float = 24.0
+    background: Color | None = None  # caixa atrás só do texto; None = sem fundo
+
+    @property
+    def padding(self) -> float:
+        return self.font_size * TEXT_BACKGROUND_PADDING if self.background is not None else 0.0
 
     def bounds(self) -> Rect:
         width = max(len(self.text), 1) * self.font_size * 0.6
         height = self.font_size * 1.4
-        return Rect(self.origin.x, self.origin.y, width, height)
+        pad = self.padding
+        return Rect(self.origin.x - pad, self.origin.y - pad, width + 2 * pad, height + 2 * pad)
 
     def translated(self, dx: float, dy: float) -> TextAnnotation:
         return replace(self, origin=self.origin.translated(dx, dy))
@@ -235,9 +242,30 @@ class TextAnnotation(Annotation):
         if not self.text:
             return
         layout = _pango_layout(cr, self.text, self.font_size)
+        if self.background is not None:
+            _, logical = layout.get_pixel_extents()
+            pad = self.padding
+            _rounded_rect(
+                cr,
+                self.origin.x + logical.x - pad, self.origin.y + logical.y - pad,
+                logical.width + 2 * pad, logical.height + 2 * pad,
+                radius=pad,
+            )
+            _set_source(cr, self.background)
+            cr.fill()
         cr.move_to(self.origin.x, self.origin.y)
         _set_source(cr, self.color)
         PangoCairo.show_layout(cr, layout)
+
+
+def _rounded_rect(cr: cairo.Context, x: float, y: float, w: float, h: float, radius: float) -> None:
+    r = max(0.0, min(radius, w / 2, h / 2))
+    cr.new_sub_path()
+    cr.arc(x + w - r, y + r, r, -math.pi / 2, 0)
+    cr.arc(x + w - r, y + h - r, r, 0, math.pi / 2)
+    cr.arc(x + r, y + h - r, r, math.pi / 2, math.pi)
+    cr.arc(x + r, y + r, r, math.pi, 3 * math.pi / 2)
+    cr.close_path()
 
 
 # ---------------------------------------------------------------------------

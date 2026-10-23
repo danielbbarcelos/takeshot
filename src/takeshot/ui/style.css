@@ -9,3 +9,8 @@
 entry.takeshot-text-tool {
   min-width: 120px;
 }
+
+button.takeshot-text-preset:checked {
+  outline: 2px solid @accent_color;
+  outline-offset: -4px;
+}

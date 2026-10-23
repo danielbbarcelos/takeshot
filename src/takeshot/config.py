@@ -19,6 +19,7 @@ DEFAULTS: dict[str, Any] = {
     "counter_start": 1,
     "tool_color": [1.0, 0.13, 0.13, 1.0],
     "tool_line_width": 3.0,
+    "text_preset": 0,  # índice em editor.tools.TEXT_PRESETS
     "last_selection": None,  # {"x","y","w","h"} como fração 0..1 da tela lógica, ou None
 }
 

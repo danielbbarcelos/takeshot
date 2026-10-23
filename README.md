@@ -115,6 +115,11 @@ Por padrão, **nenhuma ferramenta de anotação vem selecionada** — arrastar d
 ela, redimensionar é sempre pelos handles, e desenhar exige escolher uma ferramenta primeiro
 (`1`–`8` ou clique na toolbar).
 
+O botão **Nova área** da toolbar descarta a seleção e as anotações; o próximo arrasto define a
+área nova. Com a ferramenta de texto (`5`) ativa, a toolbar mostra os estilos do texto: cor da
+ferramenta sem fundo, ou texto com caixa de fundo (branco sobre preto, preto sobre amarelo, branco
+sobre vermelho, preto sobre branco). O estilo escolhido fica salvo para as próximas capturas.
+
 ## Desinstalar
 
 ```bash

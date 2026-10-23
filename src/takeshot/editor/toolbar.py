@@ -8,7 +8,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Gdk, Gtk  # noqa: E402
 
-from takeshot.editor.tools import ToolKind
+from takeshot.editor.tools import TEXT_PRESETS, ToolKind
 
 TOOL_LABELS: dict[ToolKind, tuple[str, str]] = {
     ToolKind.ARROW: ("↗", "Seta (1)"),
@@ -20,6 +20,32 @@ TOOL_LABELS: dict[ToolKind, tuple[str, str]] = {
     ToolKind.BLUR: ("◑", "Desfocar (7)"),
     ToolKind.COUNTER: ("①", "Numeração (8)"),
 }
+
+
+def _css_rgba(color) -> str:
+    r, g, b, a = color
+    return f"rgba({round(r * 255)}, {round(g * 255)}, {round(b * 255)}, {a:.2f})"
+
+
+def _install_text_preset_css() -> None:
+    """Uma classe por preset, usada no botão do preset e no Gtk.Entry enquanto
+    se digita — o texto já aparece com as cores que vão para a imagem."""
+    rules = []
+    for i, preset in enumerate(TEXT_PRESETS):
+        if preset.foreground is None:
+            continue
+        rules.append(
+            f".takeshot-text-preset-{i} {{ color: {_css_rgba(preset.foreground)}; "
+            f"background: {_css_rgba(preset.background)}; font-weight: bold; }}"
+        )
+    provider = Gtk.CssProvider()
+    provider.load_from_string("\n".join(rules))
+    Gtk.StyleContext.add_provider_for_display(
+        Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
+    )
+
+
+_text_preset_css_installed = False
 
 
 class CaptureToolbar(Gtk.Box):
@@ -58,6 +84,27 @@ class CaptureToolbar(Gtk.Box):
         color_btn.connect("notify::rgba", self._on_color_changed)
         self.append(color_btn)
 
+        global _text_preset_css_installed
+        if not _text_preset_css_installed:
+            _install_text_preset_css()
+            _text_preset_css_installed = True
+
+        # estilos do texto: só aparecem com a ferramenta T ativa
+        self._preset_buttons: list[Gtk.ToggleButton] = []
+        self._presets_box = Gtk.Box(spacing=2)
+        self._presets_box.add_css_class("linked")
+        for i, preset in enumerate(TEXT_PRESETS):
+            btn = Gtk.ToggleButton(label="Aa")
+            btn.set_tooltip_text(f"Texto: {preset.label}")
+            btn.add_css_class("takeshot-text-preset")
+            btn.add_css_class(f"takeshot-text-preset-{i}")
+            btn.set_active(i == session.text_preset)
+            btn.connect("toggled", self._on_preset_toggled, i)
+            self._preset_buttons.append(btn)
+            self._presets_box.append(btn)
+        self._presets_box.set_visible(session.tool_kind is ToolKind.TEXT)
+        self.append(self._presets_box)
+
         width_spin = Gtk.SpinButton.new_with_range(1, 20, 1)
         width_spin.set_value(session.tool_style.line_width)
         width_spin.set_tooltip_text("Espessura do traço / intensidade do pixelizar e desfocar (+/-)")
@@ -77,6 +124,11 @@ class CaptureToolbar(Gtk.Box):
         self.append(redo_btn)
 
         self.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL))
+
+        restart_btn = Gtk.Button(label="Nova área")
+        restart_btn.set_tooltip_text("Descarta a área e as anotações; o próximo arrasto define a nova área")
+        restart_btn.connect("clicked", lambda _b: session.restart_selection())
+        self.append(restart_btn)
 
         cancel_btn = Gtk.Button(label="Cancelar")
         cancel_btn.set_tooltip_text("Esc")
@@ -104,6 +156,23 @@ class CaptureToolbar(Gtk.Box):
         elif self.session.tool_kind is kind:
             # clicou de novo na ferramenta ativa: volta pro modo "arrastar seleção"
             self.session.set_tool(None)
+
+    def sync_tool(self, kind: "ToolKind | None") -> None:
+        """Reflete troca de ferramenta feita fora da toolbar (atalhos 1..8)."""
+        for other_kind, btn in self._tool_buttons.items():
+            if btn.get_active() != (other_kind is kind):
+                btn.set_active(other_kind is kind)
+        self._presets_box.set_visible(kind is ToolKind.TEXT)
+        self.session._refresh()  # largura da toolbar mudou: reposiciona
+
+    def _on_preset_toggled(self, button: Gtk.ToggleButton, index: int) -> None:
+        if button.get_active():
+            for i, other in enumerate(self._preset_buttons):
+                if i != index:
+                    other.set_active(False)
+            self.session.set_text_preset(index)
+        elif self.session.text_preset == index:
+            button.set_active(True)  # sempre há um preset escolhido
 
     def _on_color_changed(self, button: Gtk.ColorDialogButton, _pspec) -> None:
         rgba = button.get_rgba()

@@ -98,3 +98,22 @@ def test_text_annotation_bounds_scale_with_length():
     short = TextAnnotation(origin=Point(0, 0), text="a")
     long = TextAnnotation(origin=Point(0, 0), text="a longer string")
     assert long.bounds().width > short.bounds().width
+
+
+def test_text_background_is_painted_behind_text_only(ctx):
+    plain = TextAnnotation(origin=Point(10, 10), text="oi", color=(1, 1, 1, 1))
+    boxed = TextAnnotation(origin=Point(10, 10), text="oi", color=(1, 1, 1, 1), background=(1, 1, 0, 1))
+    # um pixel logo à esquerda do texto, dentro do padding do fundo
+    px, py = 8, 20
+    for item, expect_painted in ((plain, False), (boxed, True)):
+        surface = render_alone(item, ctx)
+        surface.flush()
+        offset = py * surface.get_stride() + px * 4
+        assert (surface.get_data()[offset + 3] > 0) is expect_painted
+
+
+def test_text_background_grows_bounds():
+    plain = TextAnnotation(origin=Point(10, 10), text="oi")
+    boxed = TextAnnotation(origin=Point(10, 10), text="oi", background=(0, 0, 0, 1))
+    assert boxed.bounds().width > plain.bounds().width
+    assert boxed.bounds().x < plain.bounds().x
